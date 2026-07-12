@@ -92,13 +92,8 @@ class SubtitleBlocker:
         self.canvas.bind('<Button-3>', self.on_right_click)
         self.canvas.bind('<Motion>', self.on_motion)
 
-        # === 新增：Z 键绑定 ===
-        self.root.bind('<KeyPress-z>', self.on_z_press)
-        self.root.bind('<KeyPress-Z>', self.on_z_press)
-        self.root.bind('<KeyRelease-z>', self.on_z_release)
-        self.root.bind('<KeyRelease-Z>', self.on_z_release)
-        # 让根窗口能接收键盘事件
-        self.root.focus_force()
+        # === 全局 Z 键轮询（无需窗口焦点） ===
+        self.poll_z_key()
 
     def set_geometry(self):
         self.root.geometry(
@@ -248,18 +243,17 @@ class SubtitleBlocker:
     def reset_right_click(self):
         self.right_click_timer = None
 
-    # === 新增：Z 键按下 / 释放 ===
-    def on_z_press(self, event):
-        """按住 Z 键等同于按住左键 — 让遮挡条变半透明"""
-        if not self.z_pressed:
+    # === 全局 Z 键轮询（GetAsyncKeyState，无论焦点在哪个窗口都生效） ===
+    def poll_z_key(self):
+        """每 50ms 检查 Z 键物理状态，按下变半透明，松开恢复"""
+        z_down = ctypes.windll.user32.GetAsyncKeyState(0x5A) & 0x8000
+        if z_down and not self.z_pressed:
             self.z_pressed = True
             self.root.attributes('-alpha', DRAG_ALPHA)
-
-    def on_z_release(self, event):
-        """松开 Z 键等同于松开左键 — 恢复透明度"""
-        if self.z_pressed:
+        elif not z_down and self.z_pressed:
             self.z_pressed = False
             self.root.attributes('-alpha', self.original_alpha)
+        self.root.after(50, self.poll_z_key)
 
     def run(self):
         self.root.mainloop()
